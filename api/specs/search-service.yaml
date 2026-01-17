@@ -1,0 +1,390 @@
+openapi: 3.1.0
+info:
+  title: Search Service
+  description: |
+    The Search Service provides API endpoints to search records.
+
+tags:
+  - name: Search
+    description: Person search operations
+  - name: Index
+    description: Index management operations
+  - name: Operations
+    description: Health and monitoring endpoints
+
+paths:
+  /api/search:
+    get:
+      tags:
+        - Search
+      summary: Search for a person
+      description: |
+        Performs a fuzzy search against the person index using the provided criteria.
+        Returns matched results with detailed scoring breakdown showing how each match was calculated.
+
+        The search uses configurable edit distances for fuzzy matching on names and dates.
+      operationId: search
+      parameters:
+        - name: firstName
+          in: query
+          description: First name to search for
+          required: true
+          schema:
+            type: string
+          example: John
+        - name: middleNames
+          in: query
+          description: Middle name(s) to search for
+          required: false
+          schema:
+            type: string
+            nullable: true
+          example: William
+        - name: lastName
+          in: query
+          description: Last name to search for
+          required: true
+          schema:
+            type: string
+          example: Smith
+        - name: dob
+          in: query
+          description: Date of birth in yyyy-MM-dd format
+          required: true
+          schema:
+            type: string
+            format: date
+          example: "1985-06-15"
+        - name: maxNoOfResults
+          in: query
+          description: Maximum number of results to return
+          required: false
+          schema:
+            type: integer
+            format: int64
+            nullable: true
+          example: 10
+        - name: minimumResponseScore
+          in: query
+          description: Minimum score threshold (0-1). Results below this score are filtered out.
+          required: false
+          schema:
+            type: number
+            format: double
+            minimum: 0
+            maximum: 1
+            nullable: true
+          example: 0.6
+      responses:
+        "200":
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+              example:
+                personSearch:
+                  firstName: John
+                  middleNames: William
+                  lastName: Smith
+                  dob:
+                    year: 1985
+                    month: 6
+                    day: 15
+                  maxNoOfResults: 10
+                  minimumResponseScore: "0.6"
+                searchResults:
+                  - externalId: EXT-123456
+                    firstName: John
+                    middleNames: William
+                    lastName: Smith
+                    dob:
+                      year: 1985
+                      month: 6
+                      day: 15
+                    calculatedScore:
+                      type: WEIGHTED
+                      name: Person Score
+                      context: PERSON
+                      value: "0.92"
+                      weight: 1
+                      childScores:
+                        - type: STRING_DISTANCE
+                          name: First Name Score
+                          context: FIRST_NAME
+                          value: "1.0"
+                          weight: 1
+                        - type: STRING_DISTANCE
+                          name: Last Name Score
+                          context: LAST_NAME
+                          value: "1.0"
+                          weight: 1
+                        - type: DATE_DISTANCE
+                          name: DOB Score
+                          context: DATE_OF_BIRTH
+                          value: "1.0"
+                          weight: 1
+                noOfResults: 1
+                totalNumberOfRecordsSearched: 1000000
+                searchTimeInMillis: 45
+                scoreTimeInMillis: 120
+                totalTimeInMillis: 165
+
+  /api/size:
+    get:
+      tags:
+        - Index
+      summary: Get index size
+      description: Returns the total number of documents currently stored in the search index.
+      operationId: getIndexSize
+      responses:
+        "200":
+          description: Index size returned successfully
+          content:
+            application/json:
+              schema:
+                type: integer
+                format: int64
+              example: 1000000
+
+  /actuator/health:
+    get:
+      tags:
+        - Operations
+      summary: Health check
+      description: Returns the health status of the service.
+      operationId: health
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: UP
+
+  /actuator/health/liveness:
+    get:
+      tags:
+        - Operations
+      summary: Liveness probe
+      description: Kubernetes liveness probe endpoint.
+      operationId: liveness
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: UP
+
+  /actuator/health/readiness:
+    get:
+      tags:
+        - Operations
+      summary: Readiness probe
+      description: Kubernetes readiness probe endpoint.
+      operationId: readiness
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: UP
+
+  /actuator/prometheus:
+    get:
+      tags:
+        - Operations
+      summary: Prometheus metrics
+      description: Returns metrics in Prometheus format.
+      operationId: prometheus
+      responses:
+        "200":
+          description: Metrics returned successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: |
+                # HELP jvm_memory_used_bytes The amount of used memory
+                # TYPE jvm_memory_used_bytes gauge
+                jvm_memory_used_bytes{area="heap"} 1.234567E8
+
+components:
+  schemas:
+    SearchResponse:
+      type: object
+      description: Search response containing matched results and metadata
+      properties:
+        personSearch:
+          $ref: "#/components/schemas/PersonSearch"
+        searchResults:
+          type: array
+          description: List of matched search results, ordered by score descending
+          items:
+            $ref: "#/components/schemas/SearchResult"
+        noOfResults:
+          type: integer
+          format: int32
+          description: Number of results returned
+          example: 1
+        totalNumberOfRecordsSearched:
+          type: integer
+          format: int64
+          description: Total records searched in the index
+          example: 1000000
+        searchTimeInMillis:
+          type: integer
+          format: int64
+          description: Time spent searching in milliseconds
+          example: 45
+        scoreTimeInMillis:
+          type: integer
+          format: int64
+          description: Time spent scoring in milliseconds
+          example: 120
+        totalTimeInMillis:
+          type: integer
+          format: int64
+          description: Total operation time in milliseconds
+          example: 165
+
+    PersonSearch:
+      type: object
+      description: |
+        Echo of the search criteria submitted. Date of birth is returned as a structured object.
+      properties:
+        firstName:
+          type: string
+          description: First name searched for
+          example: John
+        middleNames:
+          type: string
+          description: Middle name(s) searched for
+          example: William
+        lastName:
+          type: string
+          description: Last name searched for
+          example: Smith
+        dob:
+          $ref: "#/components/schemas/ProtoDate"
+        maxNoOfResults:
+          type: integer
+          format: int64
+          description: Maximum results requested
+          example: 10
+        minimumResponseScore:
+          type: string
+          description: Minimum score threshold applied as a decimal string between 0 and 1
+          example: "0.6"
+
+    SearchResult:
+      type: object
+      description: Individual search result with match details
+      properties:
+        externalId:
+          type: string
+          description: External unique identifier for the matched record
+          example: EXT-123456
+        firstName:
+          type: string
+          description: First name of matched person
+          example: John
+        middleNames:
+          type: string
+          description: Middle names of matched person
+          example: William
+        lastName:
+          type: string
+          description: Last name of matched person
+          example: Smith
+        dob:
+          $ref: "#/components/schemas/ProtoDate"
+        calculatedScore:
+          $ref: "#/components/schemas/Score"
+
+    Score:
+      type: object
+      description: |
+        Score breakdown showing how a match score was calculated.
+        Scores are hierarchical - a parent score may contain child scores that contributed to its value.
+      properties:
+        type:
+          type: string
+          description: Type of scoring algorithm used
+          enum:
+            - WEIGHTED
+            - MAXIMUM
+            - EXACT
+            - STRING_DISTANCE
+            - DATE_DISTANCE
+            - SYNONYM
+            - PHONETIC
+          example: WEIGHTED
+        name:
+          type: string
+          description: Human-readable name of this score component
+          example: Person Score
+        context:
+          type: string
+          description: The field or context this score applies to
+          enum:
+            - FIRST_NAME
+            - MIDDLE_NAMES
+            - LAST_NAME
+            - DATE_OF_BIRTH
+            - PERSON
+          example: PERSON
+        value:
+          type: string
+          description: Calculated score value as a decimal string between 0 and 1
+          example: "0.92"
+        weight:
+          type: integer
+          format: int32
+          description: Weight applied to this score in parent calculation
+          example: 1
+        childScores:
+          type: array
+          description: Child scores that contributed to this score
+          items:
+            $ref: "#/components/schemas/Score"
+
+    HealthResponse:
+      type: object
+      description: Health check response
+      properties:
+        status:
+          type: string
+          description: Health status
+          enum:
+            - UP
+            - DOWN
+          example: UP
+
+    ProtoDate:
+      type: object
+      description: Date represented as year, month, and day components
+      properties:
+        year:
+          type: integer
+          format: int32
+          description: Year component
+          example: 1985
+        month:
+          type: integer
+          format: int32
+          description: Month component (1-12)
+          example: 6
+        day:
+          type: integer
+          format: int32
+          description: Day component (1-31)
+          example: 15

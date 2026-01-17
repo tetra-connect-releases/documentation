@@ -1,0 +1,94 @@
+openapi: 3.1.0
+info:
+  title: Score Service
+  description: |
+    Internal service used by the Search Service. The public documentation covers only the operational endpoints.
+
+tags:
+  - name: Operations
+    description: Health and monitoring endpoints
+
+paths:
+  /actuator/health:
+    get:
+      tags:
+        - Operations
+      summary: Health check
+      description: Returns the health status of the service.
+      operationId: health
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: UP
+
+  /actuator/health/liveness:
+    get:
+      tags:
+        - Operations
+      summary: Liveness probe
+      description: Kubernetes liveness probe endpoint.
+      operationId: liveness
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: UP
+
+  /actuator/health/readiness:
+    get:
+      tags:
+        - Operations
+      summary: Readiness probe
+      description: Kubernetes readiness probe endpoint.
+      operationId: readiness
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: UP
+
+  /actuator/prometheus:
+    get:
+      tags:
+        - Operations
+      summary: Prometheus metrics
+      description: Returns metrics in Prometheus format.
+      operationId: prometheus
+      responses:
+        "200":
+          description: Metrics returned successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: |
+                # HELP jvm_memory_used_bytes The amount of used memory
+                # TYPE jvm_memory_used_bytes gauge
+                jvm_memory_used_bytes{area="heap"} 1.234567E8
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      description: Health check response
+      properties:
+        status:
+          type: string
+          description: Health status
+          enum:
+            - UP
+            - DOWN
+          example: UP

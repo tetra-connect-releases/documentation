@@ -1,0 +1,36 @@
+```mermaid
+graph TB
+    Client[Client Application]
+
+    subgraph "Tetra Connect"
+        Search[Search Service<br/>Port 1967<br/>External]
+        Score[Score Service<br/>Port 1969<br/>Internal]
+        Ingest[Ingestion Service<br/>Port 1970<br/>External]
+        UI[UI<br/>Port 1968<br/>External]
+        Storage[(Shared Index Storage<br/>NFS/EFS)]
+    end
+
+    DB[(Client Data Source<br/>MySQL/PostgreSQL/etc)]
+
+    Client -->|REST API<br/>JSON/Protobuf| Search
+    Client -->|REST API<br/>JSON| Ingest
+    Client -.->|Web Browser| UI
+
+    UI -->|HTTP| Search
+    Search -->|Protobuf<br/>Internal| Score
+
+    Search -->|Read| Storage
+    Ingest -->|Read/Write| Storage
+
+    Ingest -->|Read| DB
+
+    classDef external fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
+    classDef internal fill:#95A5A6,stroke:#7F8C8D,stroke-width:2px,color:#fff
+    classDef storage fill:#F39C12,stroke:#D68910,stroke-width:2px,color:#fff
+    classDef clientdata fill:#E74C3C,stroke:#C0392B,stroke-width:2px,color:#fff
+
+    class Search,Ingest,UI external
+    class Score internal
+    class Storage storage
+    class DB clientdata
+```
